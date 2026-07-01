@@ -72,8 +72,8 @@ function App() {
         <p className="eyebrow">AI Resume Builder</p>
         <h1>Talyrd</h1>
         <p>
-          Upload your resume, extract text, compare it with a job description,
-          and get ATS keyword gap analysis.
+          Upload your resume, compare it with a job description, and generate
+          tailored resume content plus a cover letter using OpenAI.
         </p>
       </section>
 
@@ -82,7 +82,8 @@ function App() {
           <>
             <span>Backend: {status.backend}</span>
             <span>Database: {status.database}</span>
-            <span>Version: {status.version}</span>
+            <span>OpenAI: {status.openai}</span>
+            <span>Model: {status.openai_model}</span>
           </>
         ) : (
           <span>Loading system status...</span>
@@ -91,8 +92,8 @@ function App() {
 
       <section className="layout">
         <div className="card">
-          <p className="eyebrow dark">Step 6</p>
-          <h2>Upload and Analyze Resume</h2>
+          <p className="eyebrow dark">Step 7</p>
+          <h2>Upload, Analyze, and Tailor</h2>
 
           <label>Full Name</label>
           <input
@@ -121,7 +122,7 @@ function App() {
           />
 
           <button onClick={uploadResume} disabled={loading}>
-            {loading ? "Analyzing..." : "Upload and Analyze"}
+            {loading ? "Generating with OpenAI..." : "Generate Tailored Content"}
           </button>
 
           {uploadResult?.error && (
@@ -132,34 +133,39 @@ function App() {
             <div className="successBox">
               <strong>{uploadResult.message}</strong>
               <p>Submission ID: {uploadResult.submission_id}</p>
-              <p>File: {uploadResult.original_filename}</p>
-              <p>Extracted Characters: {uploadResult.extracted_char_count}</p>
-              <p>ATS Score: {uploadResult.ats_score}%</p>
+              <p>Before ATS: {uploadResult.pre_ats_score}%</p>
+              <p>After ATS: {uploadResult.post_ats_score}%</p>
             </div>
           )}
         </div>
 
         <div className="card">
-          <p className="eyebrow dark">ATS Analysis</p>
-          <h2>Keyword Match Result</h2>
+          <p className="eyebrow dark">OpenAI Result</p>
+          <h2>Tailored Output</h2>
 
-          {!selectedSubmission && <p>No analysis selected yet.</p>}
+          {!selectedSubmission && <p>No tailored result selected yet.</p>}
 
           {selectedSubmission && (
             <>
-              <div className="scoreBox">
-                <span>ATS Score</span>
-                <strong>{selectedSubmission.ats_score}%</strong>
+              <div className="scoreGrid">
+                <div>
+                  <span>Before</span>
+                  <strong>{selectedSubmission.pre_ats_score}%</strong>
+                </div>
+                <div>
+                  <span>After</span>
+                  <strong>{selectedSubmission.post_ats_score}%</strong>
+                </div>
               </div>
 
               <div className="metaGrid">
                 <div>
-                  <span>Status</span>
+                  <span>Extraction</span>
                   <strong>{selectedSubmission.extraction_status}</strong>
                 </div>
                 <div>
-                  <span>Characters</span>
-                  <strong>{selectedSubmission.extracted_char_count}</strong>
+                  <span>Tailoring</span>
+                  <strong>{selectedSubmission.tailoring_status}</strong>
                 </div>
               </div>
 
@@ -177,16 +183,19 @@ function App() {
                 ))}
               </div>
 
-              <h3>Recommendations</h3>
-              <ul className="recommendations">
-                {selectedSubmission.recommendations.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
+              <h3>Improvement Summary</h3>
+              <div className="textPanel">
+                {selectedSubmission.improvement_summary || "No summary available."}
+              </div>
 
-              <h3>Extracted Resume Preview</h3>
-              <pre className="previewBox">
-                {selectedSubmission.extracted_preview}
+              <h3>Tailored Resume</h3>
+              <pre className="previewBox light">
+                {selectedSubmission.tailored_resume_text}
+              </pre>
+
+              <h3>Cover Letter</h3>
+              <pre className="previewBox light">
+                {selectedSubmission.cover_letter_text}
               </pre>
             </>
           )}
@@ -195,7 +204,7 @@ function App() {
 
       <section className="card historyCard">
         <p className="eyebrow dark">History</p>
-        <h2>Uploaded Submissions</h2>
+        <h2>Submissions</h2>
 
         <div className="history">
           {submissions.length === 0 && <p>No submissions yet.</p>}
@@ -211,8 +220,8 @@ function App() {
                 <p>{item.full_name}</p>
                 <p>{item.target_role}</p>
                 <small>
-                  ATS {item.ats_score}% · {item.extraction_status} ·{" "}
-                  {item.extracted_char_count} chars · {item.created_at}
+                  Before {item.pre_ats_score}% · After {item.post_ats_score}% ·{" "}
+                  {item.tailoring_status} · {item.created_at}
                 </small>
               </div>
             </button>

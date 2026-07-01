@@ -13,9 +13,11 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 DATABASE_URL = os.getenv("DATABASE_URL")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 APP_NAME = "Talyrd"
-APP_VERSION = "0.1.0"
+APP_VERSION = "0.2.0"
 
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "5"))
 ALLOWED_EXTENSIONS = {"pdf", "docx", "txt", "tex"}

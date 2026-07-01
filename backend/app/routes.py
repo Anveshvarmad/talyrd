@@ -3,10 +3,11 @@ from flask import Blueprint, jsonify, request
 from werkzeug.utils import secure_filename
 from sqlalchemy import text
 
-from app.config import APP_NAME, APP_VERSION, UPLOAD_DIR, ALLOWED_EXTENSIONS, MAX_UPLOAD_MB
+from app.config import APP_NAME, APP_VERSION, UPLOAD_DIR, ALLOWED_EXTENSIONS, MAX_UPLOAD_MB, OPENAI_MODEL, OPENAI_API_KEY
 from app.db import check_db_connection, engine
 from app.services.extractor import extract_text
 from app.services.ats_analyzer import analyze_resume_against_job
+from app.services.openai_tailor import tailor_resume_with_openai
 
 api = Blueprint("api", __name__)
 
@@ -36,7 +37,9 @@ def status():
         "app": APP_NAME,
         "version": APP_VERSION,
         "backend": "ok",
-        "database": "ok" if db_ok else "error"
+        "database": "ok" if db_ok else "error",
+        "openai": "configured" if OPENAI_API_KEY else "missing",
+        "openai_model": OPENAI_MODEL
     })
 
 @api.post("/api/uploads")
@@ -84,8 +87,27 @@ def upload_resume():
             "error": f"File uploaded, but text extraction failed: {str(error)}"
         }), 400
 
-    analysis = analyze_resume_against_job(extracted_text, job_description)
+    pre_analysis = analyze_resume_against_job(extracted_text, job_description)
     extracted_char_count = len(extracted_text)
+
+    try:
+        ai_output = tailor_resume_with_openai(
+            full_name=full_name,
+            target_role=target_role,
+            resume_text=extracted_text,
+            job_description=job_description,
+            ats_analysis=pre_analysis
+        )
+        tailoring_status = "completed"
+    except Exception as error:
+        return jsonify({
+            "error": f"OpenAI tailoring failed: {str(error)}"
+        }), 500
+
+    post_analysis = analyze_resume_against_job(
+        ai_output["tailored_resume_text"],
+        job_description
+    )
 
     with engine.begin() as conn:
         row = conn.execute(
@@ -101,11 +123,17 @@ def upload_resume():
                     extracted_char_count,
                     extraction_status,
                     ats_score,
+                    pre_ats_score,
+                    post_ats_score,
                     job_keywords,
                     resume_keywords,
                     matched_keywords,
                     missing_keywords,
-                    recommendations
+                    recommendations,
+                    tailoring_status,
+                    tailored_resume_text,
+                    cover_letter_text,
+                    improvement_summary
                 )
                 VALUES (
                     :full_name,
@@ -118,11 +146,17 @@ def upload_resume():
                     :extracted_char_count,
                     :extraction_status,
                     :ats_score,
+                    :pre_ats_score,
+                    :post_ats_score,
                     :job_keywords,
                     :resume_keywords,
                     :matched_keywords,
                     :missing_keywords,
-                    :recommendations
+                    :recommendations,
+                    :tailoring_status,
+                    :tailored_resume_text,
+                    :cover_letter_text,
+                    :improvement_summary
                 )
                 RETURNING id, created_at
             """),
@@ -136,31 +170,40 @@ def upload_resume():
                 "extracted_resume_text": extracted_text,
                 "extracted_char_count": extracted_char_count,
                 "extraction_status": "completed",
-                "ats_score": analysis["ats_score"],
-                "job_keywords": join_list(analysis["job_keywords"]),
-                "resume_keywords": join_list(analysis["resume_keywords"]),
-                "matched_keywords": join_list(analysis["matched_keywords"]),
-                "missing_keywords": join_list(analysis["missing_keywords"]),
-                "recommendations": "\n".join(analysis["recommendations"])
+                "ats_score": post_analysis["ats_score"],
+                "pre_ats_score": pre_analysis["ats_score"],
+                "post_ats_score": post_analysis["ats_score"],
+                "job_keywords": join_list(post_analysis["job_keywords"]),
+                "resume_keywords": join_list(post_analysis["resume_keywords"]),
+                "matched_keywords": join_list(post_analysis["matched_keywords"]),
+                "missing_keywords": join_list(post_analysis["missing_keywords"]),
+                "recommendations": "\n".join(post_analysis["recommendations"]),
+                "tailoring_status": tailoring_status,
+                "tailored_resume_text": ai_output["tailored_resume_text"],
+                "cover_letter_text": ai_output["cover_letter_text"],
+                "improvement_summary": ai_output["improvement_summary"]
             }
         ).mappings().first()
 
     return jsonify({
-        "message": "Resume uploaded, text extracted, and ATS analysis completed",
+        "message": "Resume uploaded, analyzed, and tailored with OpenAI",
         "submission_id": row["id"],
         "original_filename": original_filename,
-        "stored_filename": stored_filename,
         "full_name": full_name,
         "target_role": target_role,
         "extraction_status": "completed",
+        "tailoring_status": tailoring_status,
         "extracted_char_count": extracted_char_count,
         "extracted_preview": extracted_text[:1200],
-        "ats_score": analysis["ats_score"],
-        "job_keywords": analysis["job_keywords"],
-        "resume_keywords": analysis["resume_keywords"],
-        "matched_keywords": analysis["matched_keywords"],
-        "missing_keywords": analysis["missing_keywords"],
-        "recommendations": analysis["recommendations"],
+        "pre_ats_score": pre_analysis["ats_score"],
+        "post_ats_score": post_analysis["ats_score"],
+        "ats_score": post_analysis["ats_score"],
+        "matched_keywords": post_analysis["matched_keywords"],
+        "missing_keywords": post_analysis["missing_keywords"],
+        "recommendations": post_analysis["recommendations"],
+        "tailored_resume_text": ai_output["tailored_resume_text"],
+        "cover_letter_text": ai_output["cover_letter_text"],
+        "improvement_summary": ai_output["improvement_summary"],
         "created_at": str(row["created_at"])
     }), 201
 
@@ -176,7 +219,10 @@ def list_submissions():
                     original_filename,
                     extracted_char_count,
                     extraction_status,
+                    tailoring_status,
                     ats_score,
+                    pre_ats_score,
+                    post_ats_score,
                     created_at::text AS created_at
                 FROM submissions
                 ORDER BY created_at DESC
@@ -199,12 +245,18 @@ def get_submission(submission_id):
                     extracted_resume_text,
                     extracted_char_count,
                     extraction_status,
+                    tailoring_status,
                     ats_score,
+                    pre_ats_score,
+                    post_ats_score,
                     job_keywords,
                     resume_keywords,
                     matched_keywords,
                     missing_keywords,
                     recommendations,
+                    tailored_resume_text,
+                    cover_letter_text,
+                    improvement_summary,
                     created_at::text AS created_at
                 FROM submissions
                 WHERE id = :submission_id
