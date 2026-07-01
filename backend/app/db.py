@@ -18,6 +18,8 @@ def init_db():
                         upload_path TEXT,
                         job_description TEXT,
                         extracted_resume_text TEXT,
+                        extracted_char_count INTEGER DEFAULT 0,
+                        extraction_status TEXT DEFAULT 'pending',
                         ats_score INTEGER DEFAULT 0,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
@@ -31,6 +33,16 @@ def init_db():
                 conn.execute(text("""
                     ALTER TABLE submissions
                     ADD COLUMN IF NOT EXISTS upload_path TEXT
+                """))
+
+                conn.execute(text("""
+                    ALTER TABLE submissions
+                    ADD COLUMN IF NOT EXISTS extracted_char_count INTEGER DEFAULT 0
+                """))
+
+                conn.execute(text("""
+                    ALTER TABLE submissions
+                    ADD COLUMN IF NOT EXISTS extraction_status TEXT DEFAULT 'pending'
                 """))
 
             print("Database initialized successfully")

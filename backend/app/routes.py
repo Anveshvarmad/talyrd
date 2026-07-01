@@ -5,6 +5,7 @@ from sqlalchemy import text
 
 from app.config import APP_NAME, APP_VERSION, UPLOAD_DIR, ALLOWED_EXTENSIONS, MAX_UPLOAD_MB
 from app.db import check_db_connection, engine
+from app.services.extractor import extract_text
 
 api = Blueprint("api", __name__)
 
@@ -67,6 +68,15 @@ def upload_resume():
 
     resume_file.save(upload_path)
 
+    try:
+        extracted_text = extract_text(upload_path)
+    except Exception as error:
+        return jsonify({
+            "error": f"File uploaded, but text extraction failed: {str(error)}"
+        }), 400
+
+    extracted_char_count = len(extracted_text)
+
     with engine.begin() as conn:
         row = conn.execute(
             text("""
@@ -78,6 +88,8 @@ def upload_resume():
                     upload_path,
                     job_description,
                     extracted_resume_text,
+                    extracted_char_count,
+                    extraction_status,
                     ats_score
                 )
                 VALUES (
@@ -88,6 +100,8 @@ def upload_resume():
                     :upload_path,
                     :job_description,
                     :extracted_resume_text,
+                    :extracted_char_count,
+                    :extraction_status,
                     :ats_score
                 )
                 RETURNING id, created_at
@@ -99,18 +113,23 @@ def upload_resume():
                 "stored_filename": stored_filename,
                 "upload_path": str(upload_path),
                 "job_description": job_description,
-                "extracted_resume_text": "",
+                "extracted_resume_text": extracted_text,
+                "extracted_char_count": extracted_char_count,
+                "extraction_status": "completed",
                 "ats_score": 0
             }
         ).mappings().first()
 
     return jsonify({
-        "message": "Resume uploaded successfully",
+        "message": "Resume uploaded and text extracted successfully",
         "submission_id": row["id"],
         "original_filename": original_filename,
         "stored_filename": stored_filename,
         "full_name": full_name,
         "target_role": target_role,
+        "extraction_status": "completed",
+        "extracted_char_count": extracted_char_count,
+        "extracted_preview": extracted_text[:1200],
         "created_at": str(row["created_at"])
     }), 201
 
@@ -124,6 +143,8 @@ def list_submissions():
                     full_name,
                     target_role,
                     original_filename,
+                    extracted_char_count,
+                    extraction_status,
                     ats_score,
                     created_at::text AS created_at
                 FROM submissions
@@ -132,3 +153,33 @@ def list_submissions():
         ).mappings().all()
 
     return jsonify([dict(row) for row in rows])
+
+@api.get("/api/submissions/<int:submission_id>")
+def get_submission(submission_id):
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("""
+                SELECT
+                    id,
+                    full_name,
+                    target_role,
+                    original_filename,
+                    job_description,
+                    extracted_resume_text,
+                    extracted_char_count,
+                    extraction_status,
+                    ats_score,
+                    created_at::text AS created_at
+                FROM submissions
+                WHERE id = :submission_id
+            """),
+            {"submission_id": submission_id}
+        ).mappings().first()
+
+    if not row:
+        return jsonify({"error": "Submission not found"}), 404
+
+    item = dict(row)
+    item["extracted_preview"] = item["extracted_resume_text"][:2000]
+
+    return jsonify(item)

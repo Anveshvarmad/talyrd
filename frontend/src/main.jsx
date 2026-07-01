@@ -13,6 +13,7 @@ function App() {
   const [resumeFile, setResumeFile] = useState(null);
   const [uploadResult, setUploadResult] = useState(null);
   const [submissions, setSubmissions] = useState([]);
+  const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [loading, setLoading] = useState(false);
 
   const loadStatus = async () => {
@@ -25,6 +26,11 @@ function App() {
     setSubmissions(response.data);
   };
 
+  const loadSubmissionDetails = async (id) => {
+    const response = await axios.get(`${API_URL}/api/submissions/${id}`);
+    setSelectedSubmission(response.data);
+  };
+
   const uploadResume = async () => {
     if (!resumeFile) {
       setUploadResult({ error: "Please select a resume file." });
@@ -33,6 +39,7 @@ function App() {
 
     setLoading(true);
     setUploadResult(null);
+    setSelectedSubmission(null);
 
     const formData = new FormData();
     formData.append("full_name", fullName);
@@ -44,6 +51,7 @@ function App() {
       const response = await axios.post(`${API_URL}/api/uploads`, formData);
       setUploadResult(response.data);
       await loadSubmissions();
+      await loadSubmissionDetails(response.data.submission_id);
     } catch (error) {
       setUploadResult({
         error: error.response?.data?.error || "Upload failed."
@@ -64,8 +72,8 @@ function App() {
         <p className="eyebrow">AI Resume Builder</p>
         <h1>Talyrd</h1>
         <p>
-          Upload your resume, paste a job description, and generate a tailored
-          resume and cover letter.
+          Upload your resume, extract resume text, analyze job keywords, and
+          generate a tailored resume and cover letter.
         </p>
       </section>
 
@@ -83,8 +91,8 @@ function App() {
 
       <section className="layout">
         <div className="card">
-          <p className="eyebrow dark">Step 4</p>
-          <h2>Upload Resume</h2>
+          <p className="eyebrow dark">Step 5</p>
+          <h2>Upload and Extract Resume Text</h2>
 
           <label>Full Name</label>
           <input
@@ -113,7 +121,7 @@ function App() {
           />
 
           <button onClick={uploadResume} disabled={loading}>
-            {loading ? "Uploading..." : "Upload Resume"}
+            {loading ? "Uploading and extracting..." : "Upload and Extract"}
           </button>
 
           {uploadResult?.error && (
@@ -125,26 +133,59 @@ function App() {
               <strong>{uploadResult.message}</strong>
               <p>Submission ID: {uploadResult.submission_id}</p>
               <p>File: {uploadResult.original_filename}</p>
+              <p>Extracted Characters: {uploadResult.extracted_char_count}</p>
             </div>
           )}
         </div>
 
         <div className="card">
-          <p className="eyebrow dark">History</p>
-          <h2>Uploaded Submissions</h2>
+          <p className="eyebrow dark">Extraction Preview</p>
+          <h2>Extracted Resume Text</h2>
 
-          <div className="history">
-            {submissions.length === 0 && <p>No submissions yet.</p>}
+          {!selectedSubmission && <p>No extracted text selected yet.</p>}
 
-            {submissions.map((item) => (
-              <div className="historyItem" key={item.id}>
+          {selectedSubmission && (
+            <>
+              <div className="metaGrid">
+                <div>
+                  <span>Status</span>
+                  <strong>{selectedSubmission.extraction_status}</strong>
+                </div>
+                <div>
+                  <span>Characters</span>
+                  <strong>{selectedSubmission.extracted_char_count}</strong>
+                </div>
+              </div>
+
+              <pre className="previewBox">
+                {selectedSubmission.extracted_preview}
+              </pre>
+            </>
+          )}
+        </div>
+      </section>
+
+      <section className="card historyCard">
+        <p className="eyebrow dark">History</p>
+        <h2>Uploaded Submissions</h2>
+
+        <div className="history">
+          {submissions.length === 0 && <p>No submissions yet.</p>}
+
+          {submissions.map((item) => (
+            <button
+              className="historyItem"
+              key={item.id}
+              onClick={() => loadSubmissionDetails(item.id)}
+            >
+              <div>
                 <strong>{item.original_filename}</strong>
                 <p>{item.full_name}</p>
                 <p>{item.target_role}</p>
-                <small>{item.created_at}</small>
+                <small>{item.extraction_status} · {item.extracted_char_count} chars · {item.created_at}</small>
               </div>
-            ))}
-          </div>
+            </button>
+          ))}
         </div>
       </section>
     </main>

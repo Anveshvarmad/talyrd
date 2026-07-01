@@ -1,0 +1,1 @@
+We are hiring a Software Engineer with experience in Python, Flask, React, PostgreSQL, Docker, REST APIs, CI/CD, cloud deployment, and AI-powered workflow automation. The candidate should understand full-stack development, write clean code, build scalable backend services, and collaborate with cross-functional teams.

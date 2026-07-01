@@ -1,0 +1,19 @@
+SUMMARY
+Software Engineer with experience building full-stack applications, backend APIs, automation workflows, and AI-powered tools.
+
+SKILLS
+Python, Flask, React, PostgreSQL, Docker, REST APIs, JavaScript, SQL, Git, AWS, LaTeX
+
+EXPERIENCE
+Software Engineer
+Built backend APIs using Python and Flask.
+Created React interfaces for internal users.
+Worked with PostgreSQL databases and Docker-based development environments.
+Improved application workflows by automating repetitive manual steps.
+
+PROJECTS
+Talyrd
+Designed a resume and cover letter generation tool using Python, Flask, LaTeX, and AI-assisted keyword matching.
+
+EDUCATION
+M.S. Computer Engineering
