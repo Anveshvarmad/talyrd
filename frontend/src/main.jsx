@@ -72,8 +72,8 @@ function App() {
         <p className="eyebrow">AI Resume Builder</p>
         <h1>Talyrd</h1>
         <p>
-          Upload your resume, extract resume text, analyze job keywords, and
-          generate a tailored resume and cover letter.
+          Upload your resume, extract text, compare it with a job description,
+          and get ATS keyword gap analysis.
         </p>
       </section>
 
@@ -91,8 +91,8 @@ function App() {
 
       <section className="layout">
         <div className="card">
-          <p className="eyebrow dark">Step 5</p>
-          <h2>Upload and Extract Resume Text</h2>
+          <p className="eyebrow dark">Step 6</p>
+          <h2>Upload and Analyze Resume</h2>
 
           <label>Full Name</label>
           <input
@@ -121,7 +121,7 @@ function App() {
           />
 
           <button onClick={uploadResume} disabled={loading}>
-            {loading ? "Uploading and extracting..." : "Upload and Extract"}
+            {loading ? "Analyzing..." : "Upload and Analyze"}
           </button>
 
           {uploadResult?.error && (
@@ -134,18 +134,24 @@ function App() {
               <p>Submission ID: {uploadResult.submission_id}</p>
               <p>File: {uploadResult.original_filename}</p>
               <p>Extracted Characters: {uploadResult.extracted_char_count}</p>
+              <p>ATS Score: {uploadResult.ats_score}%</p>
             </div>
           )}
         </div>
 
         <div className="card">
-          <p className="eyebrow dark">Extraction Preview</p>
-          <h2>Extracted Resume Text</h2>
+          <p className="eyebrow dark">ATS Analysis</p>
+          <h2>Keyword Match Result</h2>
 
-          {!selectedSubmission && <p>No extracted text selected yet.</p>}
+          {!selectedSubmission && <p>No analysis selected yet.</p>}
 
           {selectedSubmission && (
             <>
+              <div className="scoreBox">
+                <span>ATS Score</span>
+                <strong>{selectedSubmission.ats_score}%</strong>
+              </div>
+
               <div className="metaGrid">
                 <div>
                   <span>Status</span>
@@ -157,6 +163,28 @@ function App() {
                 </div>
               </div>
 
+              <h3>Matched Keywords</h3>
+              <div className="tags">
+                {selectedSubmission.matched_keywords.map((keyword) => (
+                  <span key={keyword}>{keyword}</span>
+                ))}
+              </div>
+
+              <h3>Missing Keywords</h3>
+              <div className="tags missing">
+                {selectedSubmission.missing_keywords.map((keyword) => (
+                  <span key={keyword}>{keyword}</span>
+                ))}
+              </div>
+
+              <h3>Recommendations</h3>
+              <ul className="recommendations">
+                {selectedSubmission.recommendations.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+
+              <h3>Extracted Resume Preview</h3>
               <pre className="previewBox">
                 {selectedSubmission.extracted_preview}
               </pre>
@@ -182,7 +210,10 @@ function App() {
                 <strong>{item.original_filename}</strong>
                 <p>{item.full_name}</p>
                 <p>{item.target_role}</p>
-                <small>{item.extraction_status} · {item.extracted_char_count} chars · {item.created_at}</small>
+                <small>
+                  ATS {item.ats_score}% · {item.extraction_status} ·{" "}
+                  {item.extracted_char_count} chars · {item.created_at}
+                </small>
               </div>
             </button>
           ))}

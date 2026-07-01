@@ -21,6 +21,11 @@ def init_db():
                         extracted_char_count INTEGER DEFAULT 0,
                         extraction_status TEXT DEFAULT 'pending',
                         ats_score INTEGER DEFAULT 0,
+                        job_keywords TEXT,
+                        resume_keywords TEXT,
+                        matched_keywords TEXT,
+                        missing_keywords TEXT,
+                        recommendations TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """))
@@ -43,6 +48,31 @@ def init_db():
                 conn.execute(text("""
                     ALTER TABLE submissions
                     ADD COLUMN IF NOT EXISTS extraction_status TEXT DEFAULT 'pending'
+                """))
+
+                conn.execute(text("""
+                    ALTER TABLE submissions
+                    ADD COLUMN IF NOT EXISTS job_keywords TEXT
+                """))
+
+                conn.execute(text("""
+                    ALTER TABLE submissions
+                    ADD COLUMN IF NOT EXISTS resume_keywords TEXT
+                """))
+
+                conn.execute(text("""
+                    ALTER TABLE submissions
+                    ADD COLUMN IF NOT EXISTS matched_keywords TEXT
+                """))
+
+                conn.execute(text("""
+                    ALTER TABLE submissions
+                    ADD COLUMN IF NOT EXISTS missing_keywords TEXT
+                """))
+
+                conn.execute(text("""
+                    ALTER TABLE submissions
+                    ADD COLUMN IF NOT EXISTS recommendations TEXT
                 """))
 
             print("Database initialized successfully")

@@ -10,7 +10,7 @@ body {
 }
 
 .page {
-  width: min(1150px, 92%);
+  width: min(1180px, 92%);
   margin: 0 auto;
   padding: 40px 0;
 }
@@ -46,6 +46,11 @@ h2 {
   font-size: 28px;
 }
 
+h3 {
+  margin-top: 24px;
+  margin-bottom: 10px;
+}
+
 p {
   font-size: 16px;
   line-height: 1.5;
@@ -72,7 +77,7 @@ p {
 
 .layout {
   display: grid;
-  grid-template-columns: 1.05fr 0.95fr;
+  grid-template-columns: 1fr 1fr;
   gap: 24px;
 }
 
@@ -139,6 +144,26 @@ button:disabled {
   margin: 6px 0;
 }
 
+.scoreBox {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.scoreBox span {
+  display: block;
+  color: #1e40af;
+  font-weight: 900;
+}
+
+.scoreBox strong {
+  display: block;
+  font-size: 46px;
+  margin-top: 6px;
+}
+
 .metaGrid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -161,7 +186,35 @@ button:disabled {
 }
 
 .metaGrid strong {
-  font-size: 22px;
+  font-size: 20px;
+}
+
+.tags {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tags span {
+  background: #dbeafe;
+  color: #1e40af;
+  padding: 8px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.tags.missing span {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.recommendations {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 16px 16px 16px 34px;
+  line-height: 1.6;
 }
 
 .previewBox {
@@ -171,7 +224,7 @@ button:disabled {
   color: #d1d5db;
   border-radius: 16px;
   padding: 18px;
-  max-height: 500px;
+  max-height: 400px;
   overflow: auto;
   font-size: 13px;
   line-height: 1.5;
@@ -209,7 +262,7 @@ button:disabled {
   color: #6b7280;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 950px) {
   .layout {
     grid-template-columns: 1fr;
   }

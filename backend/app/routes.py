@@ -6,11 +6,20 @@ from sqlalchemy import text
 from app.config import APP_NAME, APP_VERSION, UPLOAD_DIR, ALLOWED_EXTENSIONS, MAX_UPLOAD_MB
 from app.db import check_db_connection, engine
 from app.services.extractor import extract_text
+from app.services.ats_analyzer import analyze_resume_against_job
 
 api = Blueprint("api", __name__)
 
 def allowed_file(filename):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def join_list(items):
+    return ", ".join(items or [])
+
+def split_text(value):
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
 
 @api.get("/health")
 def health():
@@ -75,6 +84,7 @@ def upload_resume():
             "error": f"File uploaded, but text extraction failed: {str(error)}"
         }), 400
 
+    analysis = analyze_resume_against_job(extracted_text, job_description)
     extracted_char_count = len(extracted_text)
 
     with engine.begin() as conn:
@@ -90,7 +100,12 @@ def upload_resume():
                     extracted_resume_text,
                     extracted_char_count,
                     extraction_status,
-                    ats_score
+                    ats_score,
+                    job_keywords,
+                    resume_keywords,
+                    matched_keywords,
+                    missing_keywords,
+                    recommendations
                 )
                 VALUES (
                     :full_name,
@@ -102,7 +117,12 @@ def upload_resume():
                     :extracted_resume_text,
                     :extracted_char_count,
                     :extraction_status,
-                    :ats_score
+                    :ats_score,
+                    :job_keywords,
+                    :resume_keywords,
+                    :matched_keywords,
+                    :missing_keywords,
+                    :recommendations
                 )
                 RETURNING id, created_at
             """),
@@ -116,12 +136,17 @@ def upload_resume():
                 "extracted_resume_text": extracted_text,
                 "extracted_char_count": extracted_char_count,
                 "extraction_status": "completed",
-                "ats_score": 0
+                "ats_score": analysis["ats_score"],
+                "job_keywords": join_list(analysis["job_keywords"]),
+                "resume_keywords": join_list(analysis["resume_keywords"]),
+                "matched_keywords": join_list(analysis["matched_keywords"]),
+                "missing_keywords": join_list(analysis["missing_keywords"]),
+                "recommendations": "\n".join(analysis["recommendations"])
             }
         ).mappings().first()
 
     return jsonify({
-        "message": "Resume uploaded and text extracted successfully",
+        "message": "Resume uploaded, text extracted, and ATS analysis completed",
         "submission_id": row["id"],
         "original_filename": original_filename,
         "stored_filename": stored_filename,
@@ -130,6 +155,12 @@ def upload_resume():
         "extraction_status": "completed",
         "extracted_char_count": extracted_char_count,
         "extracted_preview": extracted_text[:1200],
+        "ats_score": analysis["ats_score"],
+        "job_keywords": analysis["job_keywords"],
+        "resume_keywords": analysis["resume_keywords"],
+        "matched_keywords": analysis["matched_keywords"],
+        "missing_keywords": analysis["missing_keywords"],
+        "recommendations": analysis["recommendations"],
         "created_at": str(row["created_at"])
     }), 201
 
@@ -169,6 +200,11 @@ def get_submission(submission_id):
                     extracted_char_count,
                     extraction_status,
                     ats_score,
+                    job_keywords,
+                    resume_keywords,
+                    matched_keywords,
+                    missing_keywords,
+                    recommendations,
                     created_at::text AS created_at
                 FROM submissions
                 WHERE id = :submission_id
@@ -181,5 +217,10 @@ def get_submission(submission_id):
 
     item = dict(row)
     item["extracted_preview"] = item["extracted_resume_text"][:2000]
+    item["job_keywords"] = split_text(item["job_keywords"])
+    item["resume_keywords"] = split_text(item["resume_keywords"])
+    item["matched_keywords"] = split_text(item["matched_keywords"])
+    item["missing_keywords"] = split_text(item["missing_keywords"])
+    item["recommendations"] = item["recommendations"].splitlines() if item["recommendations"] else []
 
     return jsonify(item)
