@@ -16,3 +16,6 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 APP_NAME = "Talyrd"
 APP_VERSION = "0.1.0"
+
+MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "5"))
+ALLOWED_EXTENSIONS = {"pdf", "docx", "txt", "tex"}

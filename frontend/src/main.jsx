@@ -7,21 +7,55 @@ const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5003";
 
 function App() {
   const [status, setStatus] = useState(null);
-  const [error, setError] = useState("");
+  const [fullName, setFullName] = useState("Anvesh Varma Dantuluri");
+  const [targetRole, setTargetRole] = useState("Software Engineer");
+  const [jobDescription, setJobDescription] = useState("");
+  const [resumeFile, setResumeFile] = useState(null);
+  const [uploadResult, setUploadResult] = useState(null);
+  const [submissions, setSubmissions] = useState([]);
+  const [loading, setLoading] = useState(false);
 
   const loadStatus = async () => {
+    const response = await axios.get(`${API_URL}/api/status`);
+    setStatus(response.data);
+  };
+
+  const loadSubmissions = async () => {
+    const response = await axios.get(`${API_URL}/api/submissions`);
+    setSubmissions(response.data);
+  };
+
+  const uploadResume = async () => {
+    if (!resumeFile) {
+      setUploadResult({ error: "Please select a resume file." });
+      return;
+    }
+
+    setLoading(true);
+    setUploadResult(null);
+
+    const formData = new FormData();
+    formData.append("full_name", fullName);
+    formData.append("target_role", targetRole);
+    formData.append("job_description", jobDescription);
+    formData.append("resume", resumeFile);
+
     try {
-      const response = await axios.get(`${API_URL}/api/status`);
-      setStatus(response.data);
-      setError("");
-    } catch (err) {
-      setError("Frontend could not connect to backend API.");
-      setStatus(null);
+      const response = await axios.post(`${API_URL}/api/uploads`, formData);
+      setUploadResult(response.data);
+      await loadSubmissions();
+    } catch (error) {
+      setUploadResult({
+        error: error.response?.data?.error || "Upload failed."
+      });
+    } finally {
+      setLoading(false);
     }
   };
 
   useEffect(() => {
     loadStatus();
+    loadSubmissions();
   }, []);
 
   return (
@@ -30,48 +64,88 @@ function App() {
         <p className="eyebrow">AI Resume Builder</p>
         <h1>Talyrd</h1>
         <p>
-          Full-stack resume tailoring platform using React, Flask, Docker,
-          PostgreSQL, OpenAI, and LaTeX.
+          Upload your resume, paste a job description, and generate a tailored
+          resume and cover letter.
         </p>
       </section>
 
-      <section className="card">
-        <div className="cardHeader">
-          <div>
-            <p className="eyebrow dark">System Check</p>
-            <h2>Application Status</h2>
-          </div>
+      <section className="statusBar">
+        {status ? (
+          <>
+            <span>Backend: {status.backend}</span>
+            <span>Database: {status.database}</span>
+            <span>Version: {status.version}</span>
+          </>
+        ) : (
+          <span>Loading system status...</span>
+        )}
+      </section>
 
-          <button onClick={loadStatus}>Refresh</button>
+      <section className="layout">
+        <div className="card">
+          <p className="eyebrow dark">Step 4</p>
+          <h2>Upload Resume</h2>
+
+          <label>Full Name</label>
+          <input
+            value={fullName}
+            onChange={(event) => setFullName(event.target.value)}
+          />
+
+          <label>Target Role</label>
+          <input
+            value={targetRole}
+            onChange={(event) => setTargetRole(event.target.value)}
+          />
+
+          <label>Resume File</label>
+          <input
+            type="file"
+            accept=".pdf,.docx,.txt,.tex"
+            onChange={(event) => setResumeFile(event.target.files[0])}
+          />
+
+          <label>Job Description</label>
+          <textarea
+            placeholder="Paste the job description here..."
+            value={jobDescription}
+            onChange={(event) => setJobDescription(event.target.value)}
+          />
+
+          <button onClick={uploadResume} disabled={loading}>
+            {loading ? "Uploading..." : "Upload Resume"}
+          </button>
+
+          {uploadResult?.error && (
+            <p className="error">{uploadResult.error}</p>
+          )}
+
+          {uploadResult && !uploadResult.error && (
+            <div className="successBox">
+              <strong>{uploadResult.message}</strong>
+              <p>Submission ID: {uploadResult.submission_id}</p>
+              <p>File: {uploadResult.original_filename}</p>
+            </div>
+          )}
         </div>
 
-        {error && <p className="error">{error}</p>}
+        <div className="card">
+          <p className="eyebrow dark">History</p>
+          <h2>Uploaded Submissions</h2>
 
-        {!error && !status && <p>Loading backend status...</p>}
+          <div className="history">
+            {submissions.length === 0 && <p>No submissions yet.</p>}
 
-        {status && (
-          <div className="statusGrid">
-            <div className="statusItem">
-              <span>App</span>
-              <strong>{status.app}</strong>
-            </div>
-
-            <div className="statusItem">
-              <span>Version</span>
-              <strong>{status.version}</strong>
-            </div>
-
-            <div className="statusItem">
-              <span>Backend</span>
-              <strong>{status.backend}</strong>
-            </div>
-
-            <div className="statusItem">
-              <span>Database</span>
-              <strong>{status.database}</strong>
-            </div>
+            {submissions.map((item) => (
+              <div className="historyItem" key={item.id}>
+                <strong>{item.original_filename}</strong>
+                <p>{item.full_name}</p>
+                <p>{item.target_role}</p>
+                <small>{item.created_at}</small>
+              </div>
+            ))}
           </div>
-        )}
+        </div>
       </section>
     </main>
   );
