@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgres:16
+    container_name: talyrd_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: talyrd
+      POSTGRES_USER: talyrd_user
+      POSTGRES_PASSWORD: talyrd_password
+    ports:
+      - "5435:5432"
+    volumes:
+      - talyrd_postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: talyrd_redis
+    restart: unless-stopped
+    ports:
+      - "6382:6379"
+
+  backend:
+    build:
+      context: ./backend
+    container_name: talyrd_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "5003:5000"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - db
+      - redis
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: talyrd_frontend
+    restart: unless-stopped
+    ports:
+      - "3002:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    environment:
+      VITE_API_URL: http://localhost:5003
+    depends_on:
+      - backend
+
+volumes:
+  talyrd_postgres:
