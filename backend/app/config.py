@@ -17,7 +17,8 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 
 APP_NAME = "Talyrd"
-APP_VERSION = "0.2.0"
+APP_VERSION = "0.3.0"
 
 MAX_UPLOAD_MB = int(os.getenv("MAX_UPLOAD_MB", "5"))
 ALLOWED_EXTENSIONS = {"pdf", "docx", "txt", "tex"}
+LATEX_TIMEOUT_SECONDS = 30

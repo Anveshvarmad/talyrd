@@ -32,6 +32,9 @@ def init_db():
                         tailored_resume_text TEXT,
                         cover_letter_text TEXT,
                         improvement_summary TEXT,
+                        pdf_status TEXT DEFAULT 'pending',
+                        resume_pdf_path TEXT,
+                        cover_letter_pdf_path TEXT,
                         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                     )
                 """))
@@ -51,7 +54,10 @@ def init_db():
                     "tailoring_status TEXT DEFAULT 'pending'",
                     "tailored_resume_text TEXT",
                     "cover_letter_text TEXT",
-                    "improvement_summary TEXT"
+                    "improvement_summary TEXT",
+                    "pdf_status TEXT DEFAULT 'pending'",
+                    "resume_pdf_path TEXT",
+                    "cover_letter_pdf_path TEXT"
                 ]
 
                 for column in columns:

@@ -1,13 +1,24 @@
 import uuid
-from flask import Blueprint, jsonify, request
+from pathlib import Path
+from flask import Blueprint, jsonify, request, send_file
 from werkzeug.utils import secure_filename
 from sqlalchemy import text
 
-from app.config import APP_NAME, APP_VERSION, UPLOAD_DIR, ALLOWED_EXTENSIONS, MAX_UPLOAD_MB, OPENAI_MODEL, OPENAI_API_KEY
+from app.config import (
+    APP_NAME,
+    APP_VERSION,
+    UPLOAD_DIR,
+    OUTPUT_DIR,
+    ALLOWED_EXTENSIONS,
+    MAX_UPLOAD_MB,
+    OPENAI_MODEL,
+    OPENAI_API_KEY
+)
 from app.db import check_db_connection, engine
 from app.services.extractor import extract_text
 from app.services.ats_analyzer import analyze_resume_against_job
 from app.services.openai_tailor import tailor_resume_with_openai
+from app.services.pdf_service import compile_pdf
 
 api = Blueprint("api", __name__)
 
@@ -21,6 +32,11 @@ def split_text(value):
     if not value:
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
+
+def build_file_url(relative_path):
+    if not relative_path:
+        return None
+    return f"/api/files/{relative_path}"
 
 @api.get("/health")
 def health():
@@ -39,7 +55,8 @@ def status():
         "backend": "ok",
         "database": "ok" if db_ok else "error",
         "openai": "configured" if OPENAI_API_KEY else "missing",
-        "openai_model": OPENAI_MODEL
+        "openai_model": OPENAI_MODEL,
+        "pdf_generation": "enabled"
     })
 
 @api.post("/api/uploads")
@@ -109,6 +126,33 @@ def upload_resume():
         job_description
     )
 
+    try:
+        resume_pdf_path = compile_pdf(
+            template_name="resume.tex.j2",
+            data={
+                "full_name": full_name,
+                "target_role": target_role,
+                "tailored_resume_text": ai_output["tailored_resume_text"]
+            },
+            output_prefix="talyrd_resume"
+        )
+
+        cover_letter_pdf_path = compile_pdf(
+            template_name="cover_letter.tex.j2",
+            data={
+                "full_name": full_name,
+                "target_role": target_role,
+                "cover_letter_text": ai_output["cover_letter_text"]
+            },
+            output_prefix="talyrd_cover_letter"
+        )
+
+        pdf_status = "completed"
+    except Exception as error:
+        return jsonify({
+            "error": f"PDF generation failed: {str(error)}"
+        }), 500
+
     with engine.begin() as conn:
         row = conn.execute(
             text("""
@@ -133,7 +177,10 @@ def upload_resume():
                     tailoring_status,
                     tailored_resume_text,
                     cover_letter_text,
-                    improvement_summary
+                    improvement_summary,
+                    pdf_status,
+                    resume_pdf_path,
+                    cover_letter_pdf_path
                 )
                 VALUES (
                     :full_name,
@@ -156,7 +203,10 @@ def upload_resume():
                     :tailoring_status,
                     :tailored_resume_text,
                     :cover_letter_text,
-                    :improvement_summary
+                    :improvement_summary,
+                    :pdf_status,
+                    :resume_pdf_path,
+                    :cover_letter_pdf_path
                 )
                 RETURNING id, created_at
             """),
@@ -181,18 +231,22 @@ def upload_resume():
                 "tailoring_status": tailoring_status,
                 "tailored_resume_text": ai_output["tailored_resume_text"],
                 "cover_letter_text": ai_output["cover_letter_text"],
-                "improvement_summary": ai_output["improvement_summary"]
+                "improvement_summary": ai_output["improvement_summary"],
+                "pdf_status": pdf_status,
+                "resume_pdf_path": resume_pdf_path,
+                "cover_letter_pdf_path": cover_letter_pdf_path
             }
         ).mappings().first()
 
     return jsonify({
-        "message": "Resume uploaded, analyzed, and tailored with OpenAI",
+        "message": "Resume tailored and PDFs generated successfully",
         "submission_id": row["id"],
         "original_filename": original_filename,
         "full_name": full_name,
         "target_role": target_role,
         "extraction_status": "completed",
         "tailoring_status": tailoring_status,
+        "pdf_status": pdf_status,
         "extracted_char_count": extracted_char_count,
         "extracted_preview": extracted_text[:1200],
         "pre_ats_score": pre_analysis["ats_score"],
@@ -204,6 +258,8 @@ def upload_resume():
         "tailored_resume_text": ai_output["tailored_resume_text"],
         "cover_letter_text": ai_output["cover_letter_text"],
         "improvement_summary": ai_output["improvement_summary"],
+        "resume_pdf_url": build_file_url(resume_pdf_path),
+        "cover_letter_pdf_url": build_file_url(cover_letter_pdf_path),
         "created_at": str(row["created_at"])
     }), 201
 
@@ -220,16 +276,27 @@ def list_submissions():
                     extracted_char_count,
                     extraction_status,
                     tailoring_status,
+                    pdf_status,
                     ats_score,
                     pre_ats_score,
                     post_ats_score,
+                    resume_pdf_path,
+                    cover_letter_pdf_path,
                     created_at::text AS created_at
                 FROM submissions
                 ORDER BY created_at DESC
             """)
         ).mappings().all()
 
-    return jsonify([dict(row) for row in rows])
+    items = []
+
+    for row in rows:
+        item = dict(row)
+        item["resume_pdf_url"] = build_file_url(item.get("resume_pdf_path"))
+        item["cover_letter_pdf_url"] = build_file_url(item.get("cover_letter_pdf_path"))
+        items.append(item)
+
+    return jsonify(items)
 
 @api.get("/api/submissions/<int:submission_id>")
 def get_submission(submission_id):
@@ -246,6 +313,7 @@ def get_submission(submission_id):
                     extracted_char_count,
                     extraction_status,
                     tailoring_status,
+                    pdf_status,
                     ats_score,
                     pre_ats_score,
                     post_ats_score,
@@ -257,6 +325,8 @@ def get_submission(submission_id):
                     tailored_resume_text,
                     cover_letter_text,
                     improvement_summary,
+                    resume_pdf_path,
+                    cover_letter_pdf_path,
                     created_at::text AS created_at
                 FROM submissions
                 WHERE id = :submission_id
@@ -268,11 +338,26 @@ def get_submission(submission_id):
         return jsonify({"error": "Submission not found"}), 404
 
     item = dict(row)
-    item["extracted_preview"] = item["extracted_resume_text"][:2000]
+    item["extracted_preview"] = item["extracted_resume_text"][:2000] if item["extracted_resume_text"] else ""
     item["job_keywords"] = split_text(item["job_keywords"])
     item["resume_keywords"] = split_text(item["resume_keywords"])
     item["matched_keywords"] = split_text(item["matched_keywords"])
     item["missing_keywords"] = split_text(item["missing_keywords"])
     item["recommendations"] = item["recommendations"].splitlines() if item["recommendations"] else []
+    item["resume_pdf_url"] = build_file_url(item.get("resume_pdf_path"))
+    item["cover_letter_pdf_url"] = build_file_url(item.get("cover_letter_pdf_path"))
 
     return jsonify(item)
+
+@api.get("/api/files/<path:relative_path>")
+def get_file(relative_path):
+    output_root = OUTPUT_DIR.resolve()
+    file_path = (OUTPUT_DIR / relative_path).resolve()
+
+    if output_root not in file_path.parents:
+        return jsonify({"error": "Invalid file path"}), 400
+
+    if not file_path.exists():
+        return jsonify({"error": "File not found"}), 404
+
+    return send_file(file_path, mimetype="application/pdf", as_attachment=False)

@@ -1,0 +1,26 @@
+\documentclass[10pt]{article}
+\usepackage[margin=0.65in]{geometry}
+\usepackage[hidelinks]{hyperref}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{5pt}
+
+\begin{document}
+
+\begin{center}
+{\LARGE \textbf{ {{ full_name | latex }} }}\\
+{% if target_role %}
+\vspace{2pt}
+{{ target_role | latex }}
+{% endif %}
+\end{center}
+
+\vspace{8pt}
+{\large \textbf{Tailored Resume}}
+\vspace{2pt}
+\hrule
+\vspace{6pt}
+
+{{ tailored_resume_text | latex }}
+
+\end{document}

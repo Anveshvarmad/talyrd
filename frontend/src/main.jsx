@@ -72,8 +72,8 @@ function App() {
         <p className="eyebrow">AI Resume Builder</p>
         <h1>Talyrd</h1>
         <p>
-          Upload your resume, compare it with a job description, and generate
-          tailored resume content plus a cover letter using OpenAI.
+          Upload your resume, analyze ATS gaps, generate tailored content with
+          OpenAI, and export resume plus cover letter PDFs.
         </p>
       </section>
 
@@ -83,7 +83,8 @@ function App() {
             <span>Backend: {status.backend}</span>
             <span>Database: {status.database}</span>
             <span>OpenAI: {status.openai}</span>
-            <span>Model: {status.openai_model}</span>
+            <span>PDF: {status.pdf_generation}</span>
+            <span>Version: {status.version}</span>
           </>
         ) : (
           <span>Loading system status...</span>
@@ -92,8 +93,8 @@ function App() {
 
       <section className="layout">
         <div className="card">
-          <p className="eyebrow dark">Step 7</p>
-          <h2>Upload, Analyze, and Tailor</h2>
+          <p className="eyebrow dark">Step 8</p>
+          <h2>Generate Resume PDFs</h2>
 
           <label>Full Name</label>
           <input
@@ -122,7 +123,7 @@ function App() {
           />
 
           <button onClick={uploadResume} disabled={loading}>
-            {loading ? "Generating with OpenAI..." : "Generate Tailored Content"}
+            {loading ? "Generating PDFs..." : "Generate Tailored PDFs"}
           </button>
 
           {uploadResult?.error && (
@@ -135,13 +136,32 @@ function App() {
               <p>Submission ID: {uploadResult.submission_id}</p>
               <p>Before ATS: {uploadResult.pre_ats_score}%</p>
               <p>After ATS: {uploadResult.post_ats_score}%</p>
+              <p>PDF Status: {uploadResult.pdf_status}</p>
+
+              <div className="linkRow">
+                <a
+                  href={`${API_URL}${uploadResult.resume_pdf_url}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open Resume PDF
+                </a>
+
+                <a
+                  href={`${API_URL}${uploadResult.cover_letter_pdf_url}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open Cover Letter PDF
+                </a>
+              </div>
             </div>
           )}
         </div>
 
         <div className="card">
-          <p className="eyebrow dark">OpenAI Result</p>
-          <h2>Tailored Output</h2>
+          <p className="eyebrow dark">Output</p>
+          <h2>Tailored Result</h2>
 
           {!selectedSubmission && <p>No tailored result selected yet.</p>}
 
@@ -160,14 +180,34 @@ function App() {
 
               <div className="metaGrid">
                 <div>
-                  <span>Extraction</span>
-                  <strong>{selectedSubmission.extraction_status}</strong>
-                </div>
-                <div>
                   <span>Tailoring</span>
                   <strong>{selectedSubmission.tailoring_status}</strong>
                 </div>
+                <div>
+                  <span>PDF</span>
+                  <strong>{selectedSubmission.pdf_status}</strong>
+                </div>
               </div>
+
+              {selectedSubmission.resume_pdf_url && (
+                <div className="linkRow topLinks">
+                  <a
+                    href={`${API_URL}${selectedSubmission.resume_pdf_url}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open Resume PDF
+                  </a>
+
+                  <a
+                    href={`${API_URL}${selectedSubmission.cover_letter_pdf_url}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open Cover Letter PDF
+                  </a>
+                </div>
+              )}
 
               <h3>Matched Keywords</h3>
               <div className="tags">
@@ -188,12 +228,12 @@ function App() {
                 {selectedSubmission.improvement_summary || "No summary available."}
               </div>
 
-              <h3>Tailored Resume</h3>
+              <h3>Tailored Resume Text</h3>
               <pre className="previewBox light">
                 {selectedSubmission.tailored_resume_text}
               </pre>
 
-              <h3>Cover Letter</h3>
+              <h3>Cover Letter Text</h3>
               <pre className="previewBox light">
                 {selectedSubmission.cover_letter_text}
               </pre>
@@ -221,7 +261,7 @@ function App() {
                 <p>{item.target_role}</p>
                 <small>
                   Before {item.pre_ats_score}% · After {item.post_ats_score}% ·{" "}
-                  {item.tailoring_status} · {item.created_at}
+                  PDF {item.pdf_status || "pending"} · {item.created_at}
                 </small>
               </div>
             </button>

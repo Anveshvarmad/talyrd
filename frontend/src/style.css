@@ -144,6 +144,27 @@ button:disabled {
   margin: 6px 0;
 }
 
+.linkRow {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
+.linkRow a {
+  background: #111827;
+  color: white;
+  text-decoration: none;
+  border-radius: 12px;
+  padding: 11px 14px;
+  font-weight: 900;
+  display: inline-block;
+}
+
+.topLinks {
+  margin-bottom: 22px;
+}
+
 .scoreGrid,
 .metaGrid {
   display: grid;

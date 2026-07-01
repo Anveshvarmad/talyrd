@@ -1,0 +1,18 @@
+\documentclass[11pt]{article}
+\usepackage[margin=0.85in]{geometry}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{8pt}
+
+\begin{document}
+
+{\Large \textbf{ {{ full_name | latex }} }}\\
+{% if target_role %}
+Target Role: {{ target_role | latex }}
+{% endif %}
+
+\vspace{14pt}
+
+{{ cover_letter_text | latex }}
+
+\end{document}
