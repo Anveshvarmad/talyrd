@@ -1,5 +1,4 @@
 import uuid
-from pathlib import Path
 from flask import Blueprint, jsonify, request, send_file
 from werkzeug.utils import secure_filename
 from sqlalchemy import text
@@ -17,7 +16,13 @@ from app.config import (
 from app.db import check_db_connection, engine
 from app.services.extractor import extract_text
 from app.services.ats_analyzer import analyze_resume_against_job
-from app.services.openai_tailor import tailor_resume_with_openai
+from app.services.openai_tailor import (
+    tailor_resume_with_openai,
+    parse_resume_sections,
+    compose_resume_text,
+    build_cover_letter,
+    flatten_for_existing_routes
+)
 from app.services.pdf_service import compile_pdf
 
 api = Blueprint("api", __name__)
@@ -33,10 +38,28 @@ def split_text(value):
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
 
+def split_lines(value):
+    if not value:
+        return []
+    return [item.strip().lstrip("-• ").strip() for item in value.splitlines() if item.strip()]
+
 def build_file_url(relative_path):
     if not relative_path:
         return None
     return f"/api/files/{relative_path}"
+
+def improve_with_supported_keywords(sections, supported_keywords):
+    existing_skills = sections.get("skills", [])
+
+    existing_lower = {skill.lower() for skill in existing_skills}
+
+    for keyword in supported_keywords:
+        if keyword.lower() not in existing_lower:
+            existing_skills.append(keyword)
+
+    sections["skills"] = existing_skills
+
+    return sections
 
 @api.get("/health")
 def health():
@@ -104,8 +127,8 @@ def upload_resume():
             "error": f"File uploaded, but text extraction failed: {str(error)}"
         }), 400
 
-    pre_analysis = analyze_resume_against_job(extracted_text, job_description)
     extracted_char_count = len(extracted_text)
+    pre_analysis = analyze_resume_against_job(extracted_text, job_description)
 
     try:
         ai_output = tailor_resume_with_openai(
@@ -121,10 +144,51 @@ def upload_resume():
             "error": f"OpenAI tailoring failed: {str(error)}"
         }), 500
 
+    resume_sections = ai_output.get("resume_sections") or parse_resume_sections(extracted_text)
+
     post_analysis = analyze_resume_against_job(
-        ai_output["tailored_resume_text"],
+        ai_output.get("tailored_resume_text", ""),
         job_description
     )
+
+    if post_analysis["ats_score"] < 80:
+        resume_data = ai_output.get("resume_data")
+
+        if resume_data and isinstance(resume_data.get("skills"), dict):
+            practices = resume_data["skills"].get("practices", [])
+            existing_lower = {skill.lower() for skill in practices}
+
+            for keyword in post_analysis["missing_keywords"]:
+                if keyword.lower() not in existing_lower:
+                    practices.append(keyword)
+                    existing_lower.add(keyword.lower())
+
+            resume_data["skills"]["practices"] = practices[:14]
+
+            ai_output["resume_data"] = resume_data
+            ai_output["resume_sections"] = flatten_for_existing_routes(resume_data)
+            ai_output["tailored_resume_text"] = compose_resume_text(resume_data)
+            ai_output["improvement_summary"] = (
+                ai_output["improvement_summary"]
+                + " Talyrd added remaining ATS keywords into the Technical Skills section to improve keyword coverage."
+            )
+
+            post_analysis = analyze_resume_against_job(
+                ai_output["tailored_resume_text"],
+                job_description
+            )
+
+    resume_sections = ai_output["resume_sections"]
+
+    print("TALYRD_SECTION_DEBUG_START")
+    print("summary_len", len(resume_sections.get("summary", "")))
+    print("skills_count", len(resume_sections.get("skills", [])))
+    print("experience_count", len(resume_sections.get("experience", [])))
+    print("projects_count", len(resume_sections.get("projects", [])))
+    print("education_count", len(resume_sections.get("education", [])))
+    print("pre_ats_score", pre_analysis["ats_score"])
+    print("post_ats_score", post_analysis["ats_score"])
+    print("TALYRD_SECTION_DEBUG_END")
 
     try:
         resume_pdf_path = compile_pdf(
@@ -132,7 +196,12 @@ def upload_resume():
             data={
                 "full_name": full_name,
                 "target_role": target_role,
-                "tailored_resume_text": ai_output["tailored_resume_text"]
+                "summary": resume_sections["summary"],
+                "skills": resume_sections["skills"],
+                "experience": resume_sections["experience"],
+                "projects": resume_sections["projects"],
+                "education": resume_sections["education"],
+                "resume_data": ai_output.get("resume_data")
             },
             output_prefix="talyrd_resume"
         )
@@ -176,6 +245,11 @@ def upload_resume():
                     recommendations,
                     tailoring_status,
                     tailored_resume_text,
+                    tailored_summary,
+                    tailored_skills,
+                    tailored_experience,
+                    tailored_projects,
+                    tailored_education,
                     cover_letter_text,
                     improvement_summary,
                     pdf_status,
@@ -202,6 +276,11 @@ def upload_resume():
                     :recommendations,
                     :tailoring_status,
                     :tailored_resume_text,
+                    :tailored_summary,
+                    :tailored_skills,
+                    :tailored_experience,
+                    :tailored_projects,
+                    :tailored_education,
                     :cover_letter_text,
                     :improvement_summary,
                     :pdf_status,
@@ -230,6 +309,11 @@ def upload_resume():
                 "recommendations": "\n".join(post_analysis["recommendations"]),
                 "tailoring_status": tailoring_status,
                 "tailored_resume_text": ai_output["tailored_resume_text"],
+                "tailored_summary": resume_sections["summary"],
+                "tailored_skills": "\n".join(resume_sections["skills"]),
+                "tailored_experience": "\n".join(resume_sections["experience"]),
+                "tailored_projects": "\n".join(resume_sections["projects"]),
+                "tailored_education": "\n".join(resume_sections["education"]),
                 "cover_letter_text": ai_output["cover_letter_text"],
                 "improvement_summary": ai_output["improvement_summary"],
                 "pdf_status": pdf_status,
@@ -256,6 +340,7 @@ def upload_resume():
         "missing_keywords": post_analysis["missing_keywords"],
         "recommendations": post_analysis["recommendations"],
         "tailored_resume_text": ai_output["tailored_resume_text"],
+        "tailored_sections": resume_sections,
         "cover_letter_text": ai_output["cover_letter_text"],
         "improvement_summary": ai_output["improvement_summary"],
         "resume_pdf_url": build_file_url(resume_pdf_path),
@@ -323,6 +408,11 @@ def get_submission(submission_id):
                     missing_keywords,
                     recommendations,
                     tailored_resume_text,
+                    tailored_summary,
+                    tailored_skills,
+                    tailored_experience,
+                    tailored_projects,
+                    tailored_education,
                     cover_letter_text,
                     improvement_summary,
                     resume_pdf_path,
@@ -344,6 +434,13 @@ def get_submission(submission_id):
     item["matched_keywords"] = split_text(item["matched_keywords"])
     item["missing_keywords"] = split_text(item["missing_keywords"])
     item["recommendations"] = item["recommendations"].splitlines() if item["recommendations"] else []
+    item["tailored_sections"] = {
+        "summary": item.get("tailored_summary") or "",
+        "skills": split_lines(item.get("tailored_skills")),
+        "experience": split_lines(item.get("tailored_experience")),
+        "projects": split_lines(item.get("tailored_projects")),
+        "education": split_lines(item.get("tailored_education"))
+    }
     item["resume_pdf_url"] = build_file_url(item.get("resume_pdf_path"))
     item["cover_letter_pdf_url"] = build_file_url(item.get("cover_letter_pdf_path"))
 

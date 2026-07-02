@@ -1,26 +1,132 @@
-\documentclass[10pt]{article}
-\usepackage[margin=0.65in]{geometry}
+\documentclass[9pt]{article}
+\usepackage[letterpaper,margin=0.45in]{geometry}
 \usepackage[hidelinks]{hyperref}
+\usepackage[T1]{fontenc}
 
+\pagestyle{empty}
 \setlength{\parindent}{0pt}
-\setlength{\parskip}{5pt}
+\setlength{\parskip}{2pt}
+\renewcommand{\baselinestretch}{0.95}
+\raggedright
+\sloppy
 
 \begin{document}
+\small
 
 \begin{center}
-{\LARGE \textbf{ {{ full_name | latex }} }}\\
+{\Large \textbf{ {{ full_name | latex }} }}\\
 {% if target_role %}
-\vspace{2pt}
 {{ target_role | latex }}
 {% endif %}
 \end{center}
 
-\vspace{8pt}
-{\large \textbf{Tailored Resume}}
 \vspace{2pt}
-\hrule
-\vspace{6pt}
 
-{{ tailored_resume_text | latex }}
+\textbf{PROFESSIONAL SUMMARY}
+\vspace{1pt}
+\hrule
+\vspace{3pt}
+{{ summary | latex }}
+
+\vspace{5pt}
+
+\textbf{TECHNICAL SKILLS}
+\vspace{1pt}
+\hrule
+\vspace{3pt}
+{% if resume_data %}
+{% for label, items in resume_data.skills.items() %}
+{% if items %}
+\textbf{ {{ label.replace("_", " ").title() | latex }}: } {% for skill in items %}{{ skill | latex }}{% if not loop.last %}, {% endif %}{% endfor %}\\
+{% endif %}
+{% endfor %}
+{% else %}
+{% for skill in skills %}
+{{ skill | latex }}{% if not loop.last %}, {% endif %}
+{% endfor %}
+{% endif %}
+
+\vspace{4pt}
+
+\textbf{PROFESSIONAL EXPERIENCE}
+\vspace{1pt}
+\hrule
+\vspace{3pt}
+{% if resume_data %}
+{% for job in resume_data.experience %}
+\textbf{ {{ job.company | latex }} } \hfill {{ job.dates | latex }}\\
+\textit{ {{ job.title | latex }} }{% if job.location %} \hfill {{ job.location | latex }}{% endif %}
+\vspace{-2pt}
+\begin{itemize}
+\setlength{\itemsep}{1pt}
+\setlength{\parskip}{0pt}
+\setlength{\parsep}{0pt}
+\setlength{\topsep}{1pt}
+\setlength{\leftmargin}{12pt}
+{% for bullet in job.bullets %}
+\item {{ bullet | latex }}
+{% endfor %}
+\end{itemize}
+\vspace{1pt}
+{% endfor %}
+{% else %}
+\begin{itemize}
+{% for item in experience %}
+\item {{ item | latex }}
+{% endfor %}
+\end{itemize}
+{% endif %}
+
+\vspace{3pt}
+
+\textbf{PROJECTS}
+\vspace{1pt}
+\hrule
+\vspace{3pt}
+{% if resume_data %}
+{% for project in resume_data.projects %}
+\textbf{ {{ project.name | latex }} }{% if project.tech_stack %} \textit{ -- {{ project.tech_stack | latex }} }{% endif %}
+\vspace{-2pt}
+\begin{itemize}
+\setlength{\itemsep}{1pt}
+\setlength{\parskip}{0pt}
+\setlength{\parsep}{0pt}
+\setlength{\topsep}{1pt}
+\setlength{\leftmargin}{12pt}
+{% for bullet in project.bullets %}
+\item {{ bullet | latex }}
+{% endfor %}
+\end{itemize}
+\vspace{1pt}
+{% endfor %}
+{% else %}
+\begin{itemize}
+{% for item in projects %}
+\item {{ item | latex }}
+{% endfor %}
+\end{itemize}
+{% endif %}
+
+\vspace{3pt}
+
+\textbf{EDUCATION}
+\vspace{1pt}
+\hrule
+\vspace{3pt}
+{% if resume_data %}
+{% for edu in resume_data.education %}
+\textbf{ {{ edu.school | latex }} } \hfill {{ edu.dates | latex }}\\
+{{ edu.degree | latex }}{% if edu.location %} \hfill {{ edu.location | latex }}{% endif %}\\
+{% for detail in edu.details %}
+{{ detail | latex }}\\
+{% endfor %}
+{% endfor %}
+{% else %}
+\begin{itemize}
+{% for item in education %}
+\item {{ item | latex }}
+{% endfor %}
+\end{itemize}
+{% endif %}
 
 \end{document}
